@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Salesforce Critical & Urgent Case Monitor</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #ffffff;
+            --muted: #64748b;
+            --text: #0f172a;
+            --border: #e2e8f0;
+            --accent: #2563eb;
+            --critical: #dc2626;
+            --urgent: #f97316;
+            --alert-bg: #fef2f2;
+            --alert-border: #fecaca;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f8fafc;
+            color: var(--text);
+        }
+
+        header {
+            background: var(--bg);
+            color: #f8fafc;
+            padding: 1.25rem 2rem;
+        }
+        header h1 { margin: 0 0 0.25rem; font-size: 1.4rem; }
+        header p  { margin: 0; color: #94a3b8; font-size: 0.9rem; }
+
+        main { padding: 1.5rem 2rem; }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .toolbar input[type="text"] {
+            flex: 1;
+            min-width: 240px;
+            padding: 0.6rem 0.85rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        .toolbar input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+        .stats {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .stats span b { color: var(--text); }
+
+        .table-wrap {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th {
+            background: #f1f5f9;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--muted);
+        }
+        tbody tr:hover { background: #f8fafc; }
+        tbody tr:last-child td { border-bottom: none; }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .badge.critical { background: var(--critical); }
+        .badge.urgent   { background: var(--urgent); }
+
+        tr.alert { background: var(--alert-bg); }
+        tr.alert:hover { background: #fee2e2; }
+        .alert-pill {
+            display: inline-block;
+            padding: 0.1rem 0.45rem;
+            margin-left: 0.4rem;
+            border-radius: 4px;
+            background: var(--alert-border);
+            color: var(--critical);
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--muted);
+        }
+        .empty h3 { margin: 0 0 0.5rem; color: var(--text); }
+
+        footer {
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Salesforce Critical &amp; Urgent Case Monitor</h1>
+        <p>Open Critical/Urgent cases created in the last {{ lookback_hours }} hours &middot; generated {{ generated_at }}</p>
+    </header>
+
+    <main>
+        <div class="toolbar">
+            <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="Search any field (account, owner, case #, severity)…" />
+            <div class="stats">
+                <span><b id="visibleCount">{{ tickets|length }}</b> shown</span>
+                <span>/ <b>{{ tickets|length }}</b> total</span>
+            </div>
+        </div>
+
+        {% if tickets %}
+        <div class="table-wrap">
+            <table id="ticketsTable">
+                <thead>
+                    <tr>
+                        <th>Case #</th>
+                        <th>Severity</th>
+                        <th>Account</th>
+                        <th>Product Line</th>
+                        <th>Owner</th>
+                        <th>Created</th>
+                        <th>Age (h)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for ticket in tickets %}
+                    {% set is_alert = ticket.Alert_12h or ticket.Alert_30h or ticket.Alert_45h %}
+                    <tr class="{{ 'alert' if is_alert else '' }}">
+                        <td><strong>{{ ticket.CaseNumber }}</strong></td>
+                        <td>
+                            {% if ticket.Case_Severity__c == 'Critical' %}
+                                <span class="badge critical">Critical</span>
+                            {% elif ticket.Case_Severity__c == 'Urgent' %}
+                                <span class="badge urgent">Urgent</span>
+                            {% else %}
+                                {{ ticket.Case_Severity__c }}
+                            {% endif %}
+                        </td>
+                        <td>{{ ticket.Account }}</td>
+                        <td>{{ ticket.Product_Line__c or '—' }}</td>
+                        <td>
+                            {{ ticket.OwnerName }}<br />
+                            <small style="color: var(--muted);">{{ ticket.OwnerEmail }}</small>
+                        </td>
+                        <td>{{ ticket.CreatedDate }}</td>
+                        <td>
+                            {{ ticket.AgeHours }}
+                            {% if ticket.Alert_12h %}<span class="alert-pill">12h SLA</span>{% endif %}
+                            {% if ticket.Alert_30h %}<span class="alert-pill">30h SLA</span>{% endif %}
+                            {% if ticket.Alert_45h %}<span class="alert-pill">45h SLA</span>{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="table-wrap empty">
+            <h3>No open critical or urgent cases right now.</h3>
+            <p>You're all caught up. Refresh to re-query Salesforce.</p>
+        </div>
+        {% endif %}
+
+        <footer>
+            Built with Flask &middot; simple-salesforce &middot; openpyxl
+        </footer>
+    </main>
+
+    <script>
+        function searchTable() {
+            const input = document.getElementById("searchInput").value.toLowerCase();
+            const rows  = document.querySelectorAll("#ticketsTable tbody tr");
+            let visible = 0;
+            rows.forEach((row) => {
+                const match = row.innerText.toLowerCase().includes(input);
+                row.style.display = match ? "" : "none";
+                if (match) visible += 1;
+            });
+            const counter = document.getElementById("visibleCount");
+            if (counter) counter.textContent = visible;
+        }
+    </script>
+</body>
+</html>
